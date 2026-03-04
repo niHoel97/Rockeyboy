@@ -80,6 +80,16 @@ fun parseCoordinatesInput(input: String): CoordinatesData {
 
 
 
+fun coordinatesInRange(lat: Double, lon: Double): Boolean {
+    val latInRange = lat in 55.35..64.25
+    val lonInRange = lon in -1.45..14.45
+    return latInRange && lonInRange
+}
+
+fun formatCoordinates(lat: Double, lon: Double): String {
+    return "%.4f, %.4f".format(lat, lon)
+}
+
 private fun dmsToDecimal(degrees: Int, minutes: Int, seconds: Double, direction: String): Double {
     var decimal = degrees + (minutes / 60.0) + (seconds / 3600.0)
     if (direction == "S" || direction == "W") {
