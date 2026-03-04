@@ -20,6 +20,10 @@ import no.uio.ifi.in2000.team47.rocketboy.data.locationforecast.Locationforecast
 import no.uio.ifi.in2000.team47.rocketboy.data.locationforecast.LocationforecastRepository
 import no.uio.ifi.in2000.team47.rocketboy.data.network.HttpClientProvider
 import no.uio.ifi.in2000.team47.rocketboy.model.grib.GribResponse
+import no.uio.ifi.in2000.team47.rocketboy.model.settings.coordinatesInRange
+import no.uio.ifi.in2000.team47.rocketboy.model.settings.formatCoordinates
+import no.uio.ifi.in2000.team47.rocketboy.utils.MapUtils
+import com.mapbox.geojson.Point
 
 import org.junit.Assert.*
 
@@ -211,6 +215,145 @@ class GribResponseTest {
         val result = gribRepository.fetchGrib(59.94, 10.73)
 
         assertTrue("The fetchGrib call should succeed", result.isSuccess)
+    }
+}
+
+class MapUtilsTest {
+
+    @Test
+    fun `calculateBearing returns 0 for due North`() {
+        val from = Point.fromLngLat(0.0, 0.0)
+        val to = Point.fromLngLat(0.0, 1.0)
+        assertEquals(0.0, MapUtils.calculateBearing(from, to), 1.0)
+    }
+
+    @Test
+    fun `calculateBearing returns 90 for due East`() {
+        val from = Point.fromLngLat(0.0, 0.0)
+        val to = Point.fromLngLat(1.0, 0.0)
+        assertEquals(90.0, MapUtils.calculateBearing(from, to), 1.0)
+    }
+
+    @Test
+    fun `calculateBearing returns 180 for due South`() {
+        val from = Point.fromLngLat(0.0, 0.0)
+        val to = Point.fromLngLat(0.0, -1.0)
+        assertEquals(180.0, MapUtils.calculateBearing(from, to), 1.0)
+    }
+
+    @Test
+    fun `calculateBearing returns 270 for due West`() {
+        val from = Point.fromLngLat(0.0, 0.0)
+        val to = Point.fromLngLat(-1.0, 0.0)
+        assertEquals(270.0, MapUtils.calculateBearing(from, to), 1.0)
+    }
+
+    @Test
+    fun `calculateBearing result is always in 0 to 360 range`() {
+        val pairs = listOf(
+            Pair(Point.fromLngLat(10.0, 59.0), Point.fromLngLat(11.0, 60.0)),
+            Pair(Point.fromLngLat(5.0, 60.0), Point.fromLngLat(3.0, 58.0)),
+            Pair(Point.fromLngLat(0.0, 0.0), Point.fromLngLat(-5.0, 5.0))
+        )
+        for ((from, to) in pairs) {
+            val bearing = MapUtils.calculateBearing(from, to)
+            assertTrue("Bearing should be >= 0", bearing >= 0.0)
+            assertTrue("Bearing should be < 360", bearing < 360.0)
+        }
+    }
+
+    @Test
+    fun `calculateDistance returns 0 for same point`() {
+        val point = Point.fromLngLat(10.73, 59.94)
+        assertEquals(0.0, MapUtils.calculateDistance(point, point), 0.01)
+    }
+
+    @Test
+    fun `calculateDistance for 1 degree latitude at equator is approximately 111194 meters`() {
+        val from = Point.fromLngLat(0.0, 0.0)
+        val to = Point.fromLngLat(0.0, 1.0)
+        assertEquals(111194.0, MapUtils.calculateDistance(from, to), 1000.0)
+    }
+
+    @Test
+    fun `calculateDistance is symmetric`() {
+        val a = Point.fromLngLat(10.73, 59.94)
+        val b = Point.fromLngLat(5.32, 60.37)
+        val distAB = MapUtils.calculateDistance(a, b)
+        val distBA = MapUtils.calculateDistance(b, a)
+        assertEquals(distAB, distBA, 0.001)
+    }
+
+    @Test
+    fun `calculateDistance is always non-negative`() {
+        val from = Point.fromLngLat(10.73, 59.94)
+        val to = Point.fromLngLat(5.32, 60.37)
+        assertTrue(MapUtils.calculateDistance(from, to) >= 0.0)
+    }
+}
+
+class SettingsFunctionsExtendedTest {
+
+    @Test
+    fun `coordinatesInRange returns true for valid Norwegian coordinates`() {
+        assertTrue(coordinatesInRange(59.94, 10.73))
+    }
+
+    @Test
+    fun `coordinatesInRange returns false for latitude below minimum`() {
+        assertFalse(coordinatesInRange(55.0, 10.73))
+    }
+
+    @Test
+    fun `coordinatesInRange returns false for latitude above maximum`() {
+        assertFalse(coordinatesInRange(65.0, 10.73))
+    }
+
+    @Test
+    fun `coordinatesInRange returns false for longitude below minimum`() {
+        assertFalse(coordinatesInRange(59.94, -2.0))
+    }
+
+    @Test
+    fun `coordinatesInRange returns false for longitude above maximum`() {
+        assertFalse(coordinatesInRange(59.94, 15.0))
+    }
+
+    @Test
+    fun `coordinatesInRange returns true for exact boundary values`() {
+        assertTrue(coordinatesInRange(55.35, -1.45))
+        assertTrue(coordinatesInRange(64.25, 14.45))
+    }
+
+    @Test
+    fun `formatCoordinates returns correctly formatted string`() {
+        assertEquals("59.9432, 10.7369", formatCoordinates(59.943233, 10.736938))
+    }
+
+    @Test
+    fun `formatCoordinates handles negative values`() {
+        assertEquals("-1.2345, -9.8765", formatCoordinates(-1.2345, -9.8765))
+    }
+
+    @Test
+    fun `formatCoordinates rounds to 4 decimal places`() {
+        assertEquals("1.2346, 2.8765", formatCoordinates(1.23456789, 2.87654321))
+    }
+
+    @Test
+    fun `parseCoordinatesInput handles DMS with South latitude`() {
+        val input = "10°30'00.0\"S 10°00'00.0\"E"
+        val result = parseCoordinatesInput(input)
+        assertTrue("South latitude should be negative", result.lat < 0)
+        assertEquals(-(10 + 30.0 / 60), result.lat, 0.0001)
+    }
+
+    @Test
+    fun `parseCoordinatesInput handles DMS with West longitude`() {
+        val input = "59°00'00.0\"N 01°30'00.0\"W"
+        val result = parseCoordinatesInput(input)
+        assertTrue("West longitude should be negative", result.lon < 0)
+        assertEquals(-1.5, result.lon, 0.0001)
     }
 }
 

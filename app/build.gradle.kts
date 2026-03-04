@@ -104,6 +104,7 @@ dependencies {
 
     // Testing dependencies
     testImplementation(libs.junit)
+    testImplementation("com.mapbox.mapboxsdk:mapbox-sdk-geojson:6.15.0")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
